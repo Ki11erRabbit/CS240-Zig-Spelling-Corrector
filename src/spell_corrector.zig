@@ -61,7 +61,38 @@ pub const SpellCorrector = struct {
         var edit_dist1 = std.StringHashMap([]u8).init(self.allocator);
         defer edit_dist1.deinit();
         self.genEditDist1(&edit_dist1, lower_word, size);
+        {
+            var matches = std.ArrayList([]u8).init(self.allocator);
+            defer matches.deinit();
+            var iterator = edit_dist1.iterator();
+            var word = iterator.next();
+            while (word != null) {
+                var node = try self.dictionary.find(word.?.value_ptr.*, word.?.value_ptr.*.len);
+                if (node != null) {
+                    try matches.append(word.?.value_ptr.*);
+                }
+                word = iterator.next();
+            }
+
+            var out_str = makeOptionalString();
+            var out_freq: usize = 0;
+            for (matches.items) |match| {
+                var node = try self.dictionary.find(match, match.len);
+                if (node != null and out_freq < node.?.getFreq()) {
+                    out_str = match;
+                    out_freq = node.?.getFreq();
+                }
+            }
+            if (out_str != null) {
+                return out_str;
+            }
+        }
+        var edit_dist2 = std.StringHashMap([]u8).init(self.allocator);
+        defer edit_dist2.deinit();
+        self.genEditDist2(&edit_dist2, edit_dist1);
+
         var matches = std.ArrayList([]u8).init(self.allocator);
+        defer matches.deinit();
         var iterator = edit_dist1.iterator();
         var word = iterator.next();
         while (word != null) {
@@ -74,6 +105,7 @@ pub const SpellCorrector = struct {
 
         var out_str = makeOptionalString();
         var out_freq: usize = 0;
+
         for (matches.items) |match| {
             var node = try self.dictionary.find(match, match.len);
             if (node != null and out_freq < node.?.getFreq()) {
@@ -171,6 +203,14 @@ pub const SpellCorrector = struct {
         self.transposeChar(words, word, size);
         self.alternateChar(words, word, size);
         self.insertChar(words, word, size);
+    }
+    fn genEditDist2(self: *SpellCorrector, words: *std.StringHashMap([]u8), edit_dist1: std.StringHashMap([]u8)) void {
+        var iterator = edit_dist1.iterator();
+        var word = iterator.next();
+        while (word != null) {
+            self.genEditDist1(words, word.?.value_ptr.*, word.?.value_ptr.len);
+            word = iterator.next();
+        }
     }
     pub fn toString(self: *SpellCorrector) []const u8 {
         return self.dictionary.toString() catch return "failed to convert dictionary to string";

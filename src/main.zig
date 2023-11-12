@@ -22,7 +22,11 @@ pub fn main() !void {
     var sc = spell_corrector.SpellCorrector.init(allocator);
     sc.useDictionary("notsobig.txt");
 
-    var output = sc.suggestSimilarWord("speling", 8) catch |err| {
+    var args = std.process.args();
+    _ = args.next();
+    var word = args.next();
+
+    var output = sc.suggestSimilarWord(word.?, word.?.len) catch |err| {
         std.debug.print("Error: {any}\n", .{err});
         return;
     };
