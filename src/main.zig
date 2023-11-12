@@ -22,8 +22,16 @@ pub fn main() !void {
     var sc = spell_corrector.SpellCorrector.init(allocator);
     sc.useDictionary("notsobig.txt");
 
-    var output = sc.suggestSimilarWord("speling", 8);
-    std.debug.print("output: {any}\n", .{output});
+    var output = sc.suggestSimilarWord("speling", 8) catch |err| {
+        std.debug.print("Error: {any}\n", .{err});
+        return;
+    };
+
+    if (output != null) {
+        std.debug.print("The word is: {s}\n", .{output.?});
+    } else {
+        std.debug.print("No matching word found", .{});
+    }
 }
 
 test "simple test" {

@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const trie = @import("trie.zig");
+const io = std.io;
 
 pub const SpellCorrector = struct {
     dictionary: trie.Trie,
@@ -48,7 +49,7 @@ pub const SpellCorrector = struct {
             }
         }
     }
-    pub fn suggestSimilarWord(self: *SpellCorrector, input_word: []const u8, size: usize) Allocator.Error![]u8 {
+    pub fn suggestSimilarWord(self: *SpellCorrector, input_word: []const u8, size: usize) Allocator.Error!?[]u8 {
         var lower_word = try self.allocator.alloc(u8, size);
         for (0..(size - 1)) |i| {
             lower_word[i] = std.ascii.toLower(input_word[i]);
@@ -60,25 +61,31 @@ pub const SpellCorrector = struct {
         var edit_dist1 = std.StringHashMap([]u8).init(self.allocator);
         defer edit_dist1.deinit();
         self.genEditDist1(&edit_dist1, lower_word, size);
-        var matches = std.ArrayList(.{ []u8, trie.Node }).init(self.allocator);
-        for (edit_dist1.keys) |word| {
-            var node = self.dictionary.find(word, word.len);
+        var matches = std.ArrayList([]u8).init(self.allocator);
+        var iterator = edit_dist1.iterator();
+        var word = iterator.next();
+        while (word != null) {
+            var node = try self.dictionary.find(word.?.value_ptr.*, word.?.value_ptr.*.len);
             if (node != null) {
-                try matches.append(.{ word, node.? });
+                try matches.append(word.?.value_ptr.*);
             }
+            word = iterator.next();
         }
 
-        var out: .{ ?[]u8, usize } = .{ null, 0 };
+        var out_str = makeOptionalString();
+        var out_freq: usize = 0;
         for (matches.items) |match| {
-            if (out.@"0" == null or out.@"1" < match.@"1".getFreq()) {
-                out = match;
+            var node = try self.dictionary.find(match, match.len);
+            if (node != null and out_freq < node.?.getFreq()) {
+                out_str = match;
+                out_freq = node.?.getFreq();
             }
         }
 
-        if (out.@"0" != null) {
-            return out.@"0";
+        if (out_str != null) {
+            return out_str;
         } else {
-            return "Unable to find a similar word";
+            return null;
         }
     }
     fn deleteChar(self: *SpellCorrector, words: *std.StringHashMap([]u8), word: []u8, size: usize) void {
@@ -91,7 +98,7 @@ pub const SpellCorrector = struct {
                     j += 1;
                 }
             }
-            new_word[size - 1] = 0;
+            new_word[size - 2] = 0;
             words.put(new_word, new_word) catch return;
         }
     }
@@ -169,3 +176,7 @@ pub const SpellCorrector = struct {
         return self.dictionary.toString() catch return "failed to convert dictionary to string";
     }
 };
+
+fn makeOptionalString() ?[]u8 {
+    return null;
+}
